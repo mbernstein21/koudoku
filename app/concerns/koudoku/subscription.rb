@@ -169,7 +169,7 @@ module Koudoku::Subscription
   end
 
   def subscription_owner_email
-    current_user.email
+    return current_user.email
   end
 
   def changing_plans?
