@@ -69,7 +69,9 @@ module Koudoku::Subscription
 
               customer_attributes = {
                 description: subscription_owner_description,
+                # coupon: 'chucknorris'
                 email: subscription_owner_email,
+                # email: 'test_email@gmail.com',
                 card: credit_card_token, # obtained with Stripe.js
                 plan: plan.stripe_id
               }
@@ -169,7 +171,7 @@ module Koudoku::Subscription
   end
 
   def subscription_owner_email
-    return current_user.email
+    "#{subscription_owner.email}"
   end
 
   def changing_plans?
