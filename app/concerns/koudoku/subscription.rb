@@ -36,6 +36,16 @@ module Koudoku::Subscription
             # update the package level with stripe.
             customer.update_subscription(:plan => self.plan.stripe_id)
 
+            # update the coupon if applicable
+            if not self.coupon_code == ""
+              if not customer.discount.coupon.id == self.coupon_code
+                customer.coupon = self.coupon_code
+              end
+            end
+
+            customer.save
+            
+
             finalize_downgrade! if downgrading?
             finalize_upgrade! if upgrading?
 
@@ -66,16 +76,23 @@ module Koudoku::Subscription
             prepare_for_upgrade
 
             begin
-
-              customer_attributes = {
-                description: subscription_owner_description,
-                # coupon: 'chucknorris'
-                email: subscription_owner_email,
-                # email: 'test_email@gmail.com',
-                card: credit_card_token, # obtained with Stripe.js
-                plan: plan.stripe_id
-              }
-
+              if self.coupon_code == ""
+                customer_attributes = {
+                  description: subscription_owner_description,
+                  email: subscription_owner_email,
+                  card: credit_card_token, # obtained with Stripe.js
+                  plan: plan.stripe_id
+                }
+              else
+                customer_attributes = {
+                  description: subscription_owner_description,
+                  coupon: self.coupon_code,                  
+                  email: subscription_owner_email,
+                  card: credit_card_token, # obtained with Stripe.js
+                  plan: plan.stripe_id
+                }
+              end
+              puts customer_attributes
               # If the class we're being included in supports coupons ..
               if respond_to? :coupon
                 if coupon.present? and coupon.free_trial?
@@ -122,7 +139,18 @@ module Koudoku::Subscription
         # fetch the customer.
         customer = Stripe::Customer.retrieve(self.stripe_id)
         customer.card = self.credit_card_token
+        if not self.coupon_code == ""
+          if customer.discount
+            if not customer.discount.coupon.id == self.coupon_code
+              customer.coupon = self.coupon_code
+            end
+          else
+            customer.coupon = self.coupon_code
+          end
+        end
         customer.save
+
+        
 
         # update the last four based on this new card.
         self.last_four = customer.cards.retrieve(customer.default_card).last4

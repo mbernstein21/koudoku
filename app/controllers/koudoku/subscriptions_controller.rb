@@ -95,18 +95,46 @@ module Koudoku
     end
 
     def create
-      @subscription = ::Subscription.new(subscription_params)
-      @subscription.user = @owner
-      if @subscription.save
-        flash[:notice] = "You've been successfully upgraded."
-        redirect_to owner_subscription_path(@owner, @subscription)
-      else
-        flash[:error] = 'There was a problem processing this transaction.'
-        render :new
-      end
+      begin
+        @subscription = ::Subscription.new(subscription_params)
+        @subscription.user = @owner
+        if @subscription.save
+          flash[:notice] = "You've been successfully upgraded."
+          redirect_to owner_subscription_path(@owner, @subscription)
+        else
+          flash[:error] = 'There was a problem processing this transaction.'
+          render :new
+        end
+      rescue => e
+        flash[:error] = e.message
+        redirect_to edit_owner_subscription_path(@owner, @subscription, update: 'card')
+      end   
     end
 
     def show
+      if not ::Subscription.find(params[:id]).coupon == ""
+        @current_stripe_id = ::Subscription.find(params[:id]).stripe_id
+        if Stripe::Customer.retrieve(@current_stripe_id).discount
+          @current_coupon = Stripe::Customer.retrieve(@current_stripe_id).discount.coupon
+          if @current_coupon.percent_off
+            if @current_coupon.duration == "repeating"
+              @coupon_message = "#{@current_coupon.percent_off}% off for the first #{@current_coupon.duration_in_months} months."
+            elsif @current_coupon.duration == "once"
+              @coupon_message = "#{@current_coupon.percent_off}% off for the first month."
+            elsif @current_coupon.duration == "forever"
+              @coupon_message = "#{@current_coupon.percent_off}% off."
+            end
+          elsif @current_coupon.amount_off
+            if @current_coupon.duration == "repeating"
+              @coupon_message = "$#{@current_coupon.amount_off/100} off for the first #{@current_coupon.duration_in_months} months."
+            elsif @current_coupon.duration == "once"
+              @coupon_message = "$#{@current_coupon.amount_off/100} off for the first month."
+            elsif @current_coupon.duration == "forever"
+              @coupon_message = "$#{@current_coupon.amount_off/100} off."
+            end
+          end
+        end
+      end
     end
 
     def cancel
@@ -117,16 +145,45 @@ module Koudoku
     end
 
     def edit
+      if not ::Subscription.find(params[:id]).coupon == ""
+        @current_stripe_id = ::Subscription.find(params[:id]).stripe_id
+        if Stripe::Customer.retrieve(@current_stripe_id).discount
+          @current_coupon = Stripe::Customer.retrieve(@current_stripe_id).discount.coupon
+          if @current_coupon.percent_off
+            if @current_coupon.duration == "repeating"
+              @coupon_message = "#{@current_coupon.percent_off}% off for the first #{@current_coupon.duration_in_months} months."
+            elsif @current_coupon.duration == "once"
+              @coupon_message = "#{@current_coupon.percent_off}% off for the first month."
+            elsif @current_coupon.duration == "forever"
+              @coupon_message = "#{@current_coupon.percent_off}% off."
+            end
+          elsif @current_coupon.amount_off
+            if @current_coupon.duration == "repeating"
+              @coupon_message = "$#{@current_coupon.amount_off/100} off for the first #{@current_coupon.duration_in_months} months."
+            elsif @current_coupon.duration == "once"
+              @coupon_message = "$#{@current_coupon.amount_off/100} off for the first month."
+            elsif @current_coupon.duration == "forever"
+              @coupon_message = "$#{@current_coupon.amount_off/100} off."
+            end
+          end
+        end
+      end
     end
 
     def update
-      if @subscription.update_attributes(subscription_params)
-        flash[:notice] = "You've successfully updated your subscription."
-        redirect_to owner_subscription_path(@owner, @subscription)
-      else
-        flash[:error] = 'There was a problem processing this transaction.'
-        render :edit
+      begin
+        if @subscription.update_attributes(subscription_params)
+          flash[:notice] = "You've successfully updated your subscription."
+          redirect_to owner_subscription_path(@owner, @subscription)
+        else
+          flash[:error] = 'There was a problem processing this transaction.'
+          redirect_to edit_owner_subscription_path(@owner, @subscription, update: 'card')
+        end
+      rescue => e
+        flash[:error] = e.message
+        redirect_to edit_owner_subscription_path(@owner, @subscription, update: 'card')
       end
+
     end
 
     private
@@ -134,7 +191,7 @@ module Koudoku
       
       # If strong_parameters is around, use that.
       if defined?(ActionController::StrongParameters)
-        params.require(:subscription).permit(:plan_id, :stripe_id, :current_price, :credit_card_token, :card_type, :last_four)
+        params.require(:subscription).permit(:plan_id, :stripe_id, :current_price, :credit_card_token, :card_type, :last_four, :coupon_code)
       else
         # Otherwise, let's hope they're using attr_accessible to protect their models!
         params[:subscription]
